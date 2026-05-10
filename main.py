@@ -91,7 +91,7 @@ verdict must be exactly one of: AI-Generated, Likely Real, Inconclusive."""
         }
     }
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
