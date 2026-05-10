@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PHANTOM.EYE // AI Image Forensics</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #020408;
+    --bg2: #060d14;
+    --panel: #080f1a;
+    --border: #0a3a5c;
+    --accent: #00d4ff;
+    --accent2: #00ff88;
+    --danger: #ff3a5c;
+    --warning: #ffaa00;
+    --text: #a8d4e6;
+    --dim: #3a5a6a;
+    --glow: 0 0 20px rgba(0,212,255,0.3);
+    --glow2: 0 0 20px rgba(0,255,136,0.3);
+    --glowdanger: 0 0 20px rgba(255,58,92,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* HEADER */
+  header {
+    text-align: center;
+    padding: 40px 0 30px;
+    position: relative;
+  }
+
+  .logo-line {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+    animation: blink-text 3s infinite;
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 6vw, 52px);
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: var(--glow), 0 0 60px rgba(0,212,255,0.2);
+    letter-spacing: 6px;
+    line-height: 1;
+  }
+
+  h1 span { color: var(--accent2); text-shadow: var(--glow2); }
+
+  .subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    margin-top: 10px;
+  }
+
+  .header-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: center;
+  }
+
+  .header-bar span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 2px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 8px var(--accent2);
+    animation: pulse-dot 2s infinite;
+  }
+
+  /* UPLOAD ZONE */
+  .upload-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px;
+    margin: 20px 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-panel::before {
+    content: 'UPLOAD ZONE';
+    position: absolute;
+    top: 12px; left: 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+  }
+
+  .upload-panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .drop-zone {
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    padding: 50px 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    background: var(--bg2);
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.04);
+    box-shadow: inset 0 0 30px rgba(0,212,255,0.05);
+  }
+
+  .drop-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+    filter: drop-shadow(0 0 10px rgba(0,212,255,0.5));
+  }
+
+  .drop-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .drop-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  #fileInput { display: none; }
+
+  /* PREVIEW */
+  #preview-section { display: none; margin-top: 20px; }
+
+  .preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 600px) { .preview-grid { grid-template-columns: 1fr; } }
+
+  .preview-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    position: relative;
+  }
+
+  .preview-box label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  #previewImg {
+    width: 100%;
+    border-radius: 2px;
+    display: block;
+    border: 1px solid var(--border);
+  }
+
+  .file-info { font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+  .file-info div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .file-info div:last-child { border-bottom: none; }
+  .file-info span:first-child { color: var(--dim); }
+  .file-info span:last-child { color: var(--accent); }
+
+  /* BUTTONS */
+  .btn-analyze {
+    width: 100%;
+    margin-top: 20px;
+    padding: 16px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-analyze::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0,212,255,0.1), transparent);
+    transition: left 0.5s;
+  }
+
+  .btn-analyze:hover::before { left: 100%; }
+  .btn-analyze:hover {
+    background: rgba(0,212,255,0.08);
+    box-shadow: var(--glow);
+    color: #fff;
+  }
+
+  .btn-analyze:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-reset {
+    margin-top: 10px;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--dim);
+    color: var(--dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.3s;
+  }
+
+  .btn-reset:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* SCANNING ANIMATION */
+  #scanning { display: none; text-align: center; padding: 40px; }
+
+  .scan-box {
+    display: inline-block;
+    position: relative;
+    width: 120px; height: 120px;
+    margin-bottom: 20px;
+  }
+
+  .scan-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .scan-ring:nth-child(1) {
+    width: 120px; height: 120px;
+    border-color: var(--accent);
+    animation: spin 3s linear infinite;
+    box-shadow: 0 0 15px rgba(0,212,255,0.3);
+  }
+
+  .scan-ring:nth-child(2) {
+    width: 80px; height: 80px;
+    border-color: var(--accent2);
+    animation: spin-rev 2s linear infinite;
+    box-shadow: 0 0 10px rgba(0,255,136,0.3);
+  }
+
+  .scan-ring:nth-child(3) {
+    width: 40px; height: 40px;
+    border-color: var(--accent);
+    animation: spin 1.5s linear infinite;
+  }
+
+  .scan-dot {
+    position: absolute;
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    box-shadow: 0 0 15px var(--accent);
+    animation: pulse-dot 1s infinite;
+  }
+
+  .scan-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    animation: blink-text 1s infinite;
+  }
+
+  .scan-log {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 10px;
+    letter-spacing: 1px;
+  }
+
+  /* RESULTS */
+  #results { display: none; margin-top: 20px; }
+
+  .result-panel {
+    background: var(--panel);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-header-left {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+  }
+
+  .verdict-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 6px 16px;
+    border: 1px solid;
+    border-radius: 2px;
+  }
+
+  .verdict-badge.ai { color: var(--danger); border-color: var(--danger); background: rgba(255,58,92,0.08); box-shadow: var(--glowdanger); }
+  .verdict-badge.real { color: var(--accent2); border-color: var(--accent2); background: rgba(0,255,136,0.08); box-shadow: var(--glow2); }
+  .verdict-badge.inconclusive { color: var(--warning); border-color: var(--warning); background: rgba(255,170,0,0.08); }
+
+  /* SCORE BARS */
+  .score-section {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 500px) { .score-section { grid-template-columns: 1fr; } }
+
+  .score-item label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .score-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 36px;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .bar-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+    width: 0;
+  }
+
+  /* SUMMARY */
+  .summary-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .summary-section label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .summary-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  /* INDICATORS */
+  .indicators-section { padding: 24px; }
+
+  .indicators-section label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    display: block;
+    margin-bottom: 16px;
+  }
+
+  .indicator {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 14px;
+    margin-bottom: 10px;
+    background: var(--bg2);
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    transition: border-color 0.3s;
+  }
+
+  .indicator:hover { border-color: var(--accent); }
+
+  .sev-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  .sev-dot.high { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .sev-dot.medium { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+  .sev-dot.low { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+
+  .ind-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .ind-detail {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .metadata-section {
+    margin: 0 24px 24px;
+    padding: 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  .metadata-section label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .metadata-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.7;
+  }
+
+  /* ERROR */
+  #error-box {
+    display: none;
+    background: rgba(255,58,92,0.06);
+    border: 1px solid var(--danger);
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--danger);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    padding: 30px 0 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  /* ANIMATIONS */
+  @keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+  @keyframes spin-rev { to { transform: translate(-50%,-50%) rotate(-360deg); } }
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+    50% { opacity: 0.5; transform: translate(-50%,-50%) scale(0.7); }
+  }
+  @keyframes blink-text {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .slide-in { animation: slide-in 0.4s ease forwards; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo-line">// FORENSIC ANALYSIS SYSTEM v2.4.1 //</div>
+    <h1>PHANTOM<span>.</span>EYE</h1>
+    <div class="subtitle">AI IMAGE ORIGIN DETECTOR</div>
+    <div class="header-bar">
+      <div class="status-dot"></div>
+      <span>SYSTEM ONLINE</span>
+      <span>|</span>
+      <span>CLAUDE-SONNET ENGINE</span>
+      <span>|</span>
+      <span>FORENSICS READY</span>
+    </div>
+  </header>
+
+  <!-- UPLOAD PANEL -->
+  <div class="upload-panel" id="upload-panel">
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="drop-icon">🔍</span>
+      <span class="drop-label">DROP IMAGE HERE</span>
+      <span class="drop-sub">or click to select file</span>
+      <span class="drop-sub" style="margin-top:8px">JPEG · PNG · WEBP · GIF — max 5MB</span>
+    </div>
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif"/>
+
+    <!-- PREVIEW -->
+    <div id="preview-section">
+      <div class="preview-grid" style="margin-top:20px">
+        <div class="preview-box">
+          <label>// IMAGE PREVIEW</label>
+          <img id="previewImg" src="" alt="Preview"/>
+        </div>
+        <div class="preview-box">
+          <label>// FILE METADATA</label>
+          <div class="file-info" id="fileInfo"></div>
+        </div>
+      </div>
+      <button class="btn-analyze" id="analyzeBtn" onclick="analyzeImage()">
+        ⬡ INITIATE FORENSIC SCAN
+      </button>
+      <button class="btn-reset" onclick="resetApp()">[ RESET / LOAD NEW IMAGE ]</button>
+    </div>
+  </div>
+
+  <!-- SCANNING ANIMATION -->
+  <div id="scanning">
+    <div class="scan-box">
+      <div class="scan-ring"></div>
+      <div class="scan-ring"></div>
+      <div class="scan-ring"></div>
+      <div class="scan-dot"></div>
+    </div>
+    <div class="scan-text">SCANNING IN PROGRESS...</div>
+    <div class="scan-log" id="scanLog">Initializing forensic engine...</div>
+  </div>
+
+  <!-- ERROR -->
+  <div id="error-box"></div>
+
+  <!-- RESULTS -->
+  <div id="results"></div>
+
+  <footer>
+    PHANTOM.EYE // BUILT WITH CLAUDE SONNET // AI IMAGE FORENSICS ENGINE<br/>
+    <span style="margin-top:6px;display:block">⚠ Results are probabilistic — use as investigative aid, not absolute truth</span>
+  </footer>
+</div>
+
+<script>
+  let selectedFile = null;
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('previewImg').src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+
+    const sizeKB = (file.size / 1024).toFixed(1);
+    const sizeMB = (file.size / (1024*1024)).toFixed(2);
+    document.getElementById('fileInfo').innerHTML = `
+      <div><span>NAME</span><span>${file.name.length > 20 ? file.name.slice(0,18)+'...' : file.name}</span></div>
+      <div><span>TYPE</span><span>${file.type}</span></div>
+      <div><span>SIZE</span><span>${sizeKB > 1024 ? sizeMB + ' MB' : sizeKB + ' KB'}</span></div>
+      <div><span>LAST MODIFIED</span><span>${new Date(file.lastModified).toLocaleDateString()}</span></div>
+    `;
+
+    document.getElementById('preview-section').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error-box').style.display = 'none';
+  }
+
+  const scanLogs = [
+    'Initializing forensic engine...',
+    'Loading Claude neural analysis model...',
+    'Extracting pixel-level features...',
+    'Scanning texture coherence patterns...',
+    'Analyzing lighting consistency...',
+    'Checking geometric anomalies...',
+    'Running deepfake signature scan...',
+    'Cross-referencing artifact patterns...',
+    'Calculating confidence score...',
+    'Compiling forensic report...',
+  ];
+
+  async function analyzeImage() {
+    if (!selectedFile) return;
+
+    document.getElementById('upload-panel').style.display = 'none';
+    document.getElementById('scanning').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error-box').style.display = 'none';
+
+    // Cycle scan log messages
+    let logIdx = 0;
+    const logEl = document.getElementById('scanLog');
+    const logInterval = setInterval(() => {
+      logEl.textContent = '> ' + scanLogs[logIdx % scanLogs.length];
+      logIdx++;
+    }, 800);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const res = await fetch('/analyze', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      clearInterval(logInterval);
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Analysis failed');
+      }
+
+      renderResults(data);
+    } catch (err) {
+      clearInterval(logInterval);
+      document.getElementById('scanning').style.display = 'none';
+      document.getElementById('upload-panel').style.display = 'block';
+      const errBox = document.getElementById('error-box');
+      errBox.style.display = 'block';
+      errBox.textContent = '⚠ ERROR: ' + err.message;
+    }
+  }
+
+  function renderResults(data) {
+    document.getElementById('scanning').style.display = 'none';
+
+    const isAI = data.verdict === 'AI-Generated';
+    const isReal = data.verdict === 'Likely Real';
+    const verdictClass = isAI ? 'ai' : isReal ? 'real' : 'inconclusive';
+
+    const aiProb = data.ai_probability ?? 0;
+    const realProb = 100 - aiProb;
+
+    const aiColor = aiProb > 70 ? 'var(--danger)' : aiProb > 40 ? 'var(--warning)' : 'var(--accent2)';
+    const realColor = realProb > 60 ? 'var(--accent2)' : 'var(--accent)';
+
+    const indicatorsHTML = (data.indicators || []).map(ind => `
+      <div class="indicator">
+        <div class="sev-dot ${ind.severity || 'medium'}"></div>
+        <div>
+          <div class="ind-label">${ind.label}</div>
+          <div class="ind-detail">${ind.detail}</div>
+        </div>
+      </div>
+    `).join('');
+
+    const html = `
+      <div class="result-panel slide-in">
+        <div class="result-header">
+          <div class="result-header-left">// FORENSIC REPORT — ANALYSIS COMPLETE</div>
+          <div class="verdict-badge ${verdictClass}">${data.verdict?.toUpperCase()}</div>
+        </div>
+
+        <div class="score-section">
+          <div class="score-item">
+            <label>// AI PROBABILITY</label>
+            <div class="score-value" style="color:${aiColor}">${aiProb}<span style="font-size:18px">%</span></div>
+            <div class="bar-track">
+              <div class="bar-fill" id="aiBar" style="background:${aiColor}"></div>
+            </div>
+          </div>
+          <div class="score-item">
+            <label>// AUTHENTICITY SCORE</label>
+            <div class="score-value" style="color:${realColor}">${realProb}<span style="font-size:18px">%</span></div>
+            <div class="bar-track">
+              <div class="bar-fill" id="realBar" style="background:${realColor}"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <label>// ANALYSIS SUMMARY</label>
+          <div class="summary-text">${data.summary || 'No summary available.'}</div>
+        </div>
+
+        <div class="indicators-section">
+          <label>// DETECTED INDICATORS</label>
+          ${indicatorsHTML || '<div style="color:var(--dim);font-family:Share Tech Mono,monospace;font-size:11px">No specific indicators flagged.</div>'}
+        </div>
+
+        <div class="metadata-section">
+          <label>// METADATA & QUALITY NOTES</label>
+          <div class="metadata-text">${data.metadata_notes || 'No metadata notes available.'}</div>
+        </div>
+      </div>
+
+      <button class="btn-reset" style="margin-top:14px" onclick="resetApp()">[ ← ANALYZE ANOTHER IMAGE ]</button>
+    `;
+
+    const resultsEl = document.getElementById('results');
+    resultsEl.innerHTML = html;
+    resultsEl.style.display = 'block';
+
+    // Animate bars
+    setTimeout(() => {
+      document.getElementById('aiBar').style.width = aiProb + '%';
+      document.getElementById('realBar').style.width = realProb + '%';
+    }, 100);
+  }
+
+  function resetApp() {
+    selectedFile = null;
+    fileInput.value = '';
+    document.getElementById('upload-panel').style.display = 'block';
+    document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('scanning').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error-box').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+  }
+</script>
+</body>
+</html>
